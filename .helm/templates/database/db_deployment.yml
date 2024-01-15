@@ -1,0 +1,76 @@
+{{- if eq .Values.database.type "internal" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.database.internal.name }}
+  name: {{ .Values.database.internal.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.database.internal.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name }}
+      component: {{ .Values.database.internal.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+        component: {{ .Values.database.internal.name }}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      volumes:
+        - name: {{ .Values.database.internal.name }}
+          {{- if eq .Values.database.internal.persistentVolume "enabled" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.database.internal.name }}
+          {{- end }}
+          {{- if eq .Values.database.internal.persistentVolume "disabled" }}
+          emptyDir:
+            sizeLimit: 500Mi
+          {{- end }}
+      containers:
+      - name: {{ .Values.database.internal.name }}
+        image: {{ .Values.database.internal.image }}:{{ .Values.database.internal.imageTag }}
+        env:
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.internal.name }}
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.internal.name }}
+              key: POSTGRES_USER
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: {{ .Values.database.internal.service.targetPort }}
+        volumeMounts:
+        - name: {{ .Values.database.internal.name }}
+          mountPath: /var/lib/postgresql/data
+        readinessProbe:
+        {{- toYaml .Values.database.internal.readinessProbe | nindent 10 }}
+        livenessProbe:
+        {{- toYaml .Values.database.internal.livenessProbe | nindent 10 }}
+        resources:
+        {{- toYaml .Values.database.internal.resources | nindent 10 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 20
+{{- end -}}

@@ -1,0 +1,59 @@
+{{- if eq .Values.redis.type "internal" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.redis.internal.name }}
+  name: {{ .Values.redis.internal.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.redis.internal.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name }}
+      component: {{ .Values.redis.internal.name }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+        component: {{ .Values.redis.internal.name }}
+    spec:
+      volumes:
+        - name: {{ .Values.redis.internal.name }}
+          {{- if eq .Values.redis.internal.persistentVolume "enabled" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.redis.internal.name }}
+          {{- end }}
+          {{- if eq .Values.redis.internal.persistentVolume "disabled" }}
+          emptyDir:
+            sizeLimit: 500Mi
+          {{- end }}
+      containers:
+      - name: {{ .Values.redis.internal.name }}
+        image: {{ .Values.redis.internal.image }}:{{ .Values.redis.internal.imageTag }}
+        ports:
+        - containerPort: {{ .Values.redis.internal.service.targetPort}}
+        volumeMounts:
+        - mountPath: "/data"
+          name: {{ .Values.redis.internal.name }}
+        readinessProbe:
+        {{- toYaml .Values.redis.internal.readinessProbe | nindent 10 }}
+        livenessProbe:
+        {{- toYaml .Values.redis.internal.livenessProbe | nindent 10 }}
+        resources:
+        {{- toYaml .Values.redis.internal.resources | nindent 10 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 20
+{{- end -}}

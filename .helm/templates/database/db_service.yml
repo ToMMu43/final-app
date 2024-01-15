@@ -1,0 +1,23 @@
+{{- if eq .Values.database.type "internal" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.database.internal.name }}
+  name: {{ .Values.database.internal.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - port: {{ .Values.database.internal.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.database.internal.service.targetPort }}
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    component: {{ .Values.database.internal.name }}
+  type: NodePort
+{{- end -}}

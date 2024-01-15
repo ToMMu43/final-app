@@ -1,0 +1,21 @@
+{{- if eq .Values.database.type "internal" -}}
+{{- if eq .Values.database.internal.persistentVolume "enabled" -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.database.internal.name }}
+  name: {{ .Values.database.internal.name }}
+spec:
+  storageClassName: local-storage
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+{{- end -}}
+{{- end -}}

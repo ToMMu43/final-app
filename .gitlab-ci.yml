@@ -1,0 +1,80 @@
+default:
+  tags:
+    - kubernetes
+  image: dtzar/helm-kubectl:latest
+
+stages:
+  - lint
+#  - build
+  - deploy
+  - validate
+  - rollback
+
+variables:
+  # IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  PROJECT_NAMESPACE: study-project
+  HELM_CHART_RELEASE_NAME: final-app
+  SITE_URL: s056635.redkin-edu.ru
+
+lint-helm:
+  stage: lint
+  script:
+    - helm lint .helm/
+    - helm template --debug .helm/
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+#Build image to local storage
+# build-job:
+#   stage: build
+#   image:
+#     name: gcr.io/kaniko-project/executor:v1.14.0-debug
+#     entrypoint: [""]
+#   tags:
+#     - s056635
+#   script:
+#     - echo "Build image from Dockerfile $VERSION"
+#     - mkdir -p /kaniko/.docker
+#     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"username\":\"${CI_REGISTRY_USER}\",\"password\":\"${CI_REGISTRY_PASSWORD}\"}}}" > /kaniko/.docker/config.json
+#     - /kaniko/executor
+#       --context "${CI_PROJECT_DIR}"
+#       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+#       --destination "${IMAGE_TAG}"
+#   only:
+#     - main
+
+
+#Deploy app to k8s cluster
+deploy:
+  stage: deploy
+  variables:
+    KUBE_CONTEXT: ${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}:k8s-agent
+  script:
+    - kubectl config use-context $KUBE_CONTEXT
+    - helm upgrade --install $HELM_CHART_RELEASE_NAME .helm/
+        --debug
+        --atomic
+        --timeout 300s
+        --namespace $PROJECT_NAMESPACE   
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+Validate:
+  stage: validate
+  image: curlimages/curl:7.88.1
+  script: curl -I -k -vvv https://${SITE_URL}
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+#Rollback to old version if something goes wrong
+rollback:
+  stage: rollback
+  when: manual
+  variables:
+    KUBE_CONTEXT: ${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}:k8s-agent
+  script:
+    - kubectl config use-context $KUBE_CONTEXT
+    - helm rollback $HELM_CHART_RELEASE_NAME --namespace $PROJECT_NAMESPACE --debug
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"

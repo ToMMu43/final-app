@@ -1,0 +1,180 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.application.name }}
+  name: {{ .Values.application.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- if not .Values.application.autoScaling.enabled }}
+  replicas: {{ .Values.application.replicas | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name }}
+      component: {{ .Values.application.name }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+        component: {{ .Values.application.name }}
+    spec:
+      initContainers:
+          {{- if eq .Values.database.type "external" }}
+        - name: get-certs
+          image: busybox
+          command:
+          - "wget"
+          - "-O"
+          - "/postgresql/root.crt"
+          - "https://storage.yandexcloud.net/cloud-certs/CA.pem"
+          volumeMounts:
+          - name: yc-certs
+            mountPath: "/postgresql"
+        - name: init-db
+          image: postgres:10
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.application.name }}
+                key: POSTGRES_PASSWORD
+          command:
+            - sh
+            - -c
+            - psql -h {{ .Values.database.external.host }} -p {{ .Values.database.external.port }} -U {{ .Values.database.external.user }} -d "dbname={{ .Values.database.external.database }} sslmode=verify-full" -a  -f "/docker-entrypoint-initdb.d/init-db.sql"
+          volumeMounts:
+          - name: init-database
+            mountPath: /docker-entrypoint-initdb.d/ 
+          - name: yc-certs
+            mountPath: "/root/.postgresql/"
+          {{- end }}  
+          {{- if eq .Values.database.type "internal" }}
+        - name: init-db
+          image: postgres:10
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.application.name }}
+                key: POSTGRES_PASSWORD
+          volumeMounts:
+          - name: init-database
+            mountPath: /docker-entrypoint-initdb.d/
+          command:
+            - sh
+            - -c
+            - psql -h {{ .Values.database.internal.name }} -p {{ .Values.database.internal.service.port }} -U {{ .Values.database.internal.user }} -a  -f "/docker-entrypoint-initdb.d/init-db.sql"
+          {{- end }}
+      containers:
+      - name: {{ .Values.application.ui.name }}
+        image: {{ .Values.application.ui.image }}:{{ .Values.application.ui.imageTag }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ .Values.application.ui.service.targetPort }}
+        {{- if .Values.application.ui.readinessProbe.enabled }}
+        readinessProbe:
+        {{- toYaml .Values.application.ui.readinessProbe | nindent 10 }}
+        {{- end }}
+        {{- if .Values.application.ui.livenessProbe.enabled }}
+        livenessProbe:
+        {{- toYaml .Values.application.ui.livenessProbe | nindent 10 }}
+        {{- end }}
+        resources:
+        {{- toYaml .Values.application.ui.resources | nindent 10 }}
+        env:
+        {{- if .Values.application.ui.env }}
+        {{- range $key, $val := .Values.application.ui.env }}
+        - name: {{ $key | quote }}
+          value: {{ $val | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.application.ui.nginxConf }}
+        volumeMounts:
+          - mountPath: {{ .Values.application.ui.mountPath }}
+            name: nginx-config
+        {{- end }}
+
+      - name: {{ .Values.application.app.name }}
+        image: {{ .Values.application.app.image }}:{{ .Values.application.app.imageTag }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ .Values.application.app.port }}
+        readinessProbe:
+        {{- toYaml .Values.application.app.readinessProbe | nindent 10 }}
+        livenessProbe:
+        {{- toYaml .Values.application.app.livenessProbe | nindent 10 }}
+        resources:
+        {{- toYaml .Values.application.app.resources | nindent 10 }}
+        env:
+        {{- if .Values.application.app.env }}
+        {{- range $key, $val := .Values.application.app.env }}
+        - name: {{ $key | quote }}
+          value: {{ $val | quote }}
+        {{- end }}
+        {{- end }}
+        
+        {{- if eq .Values.redis.type "external" }}
+        - name: REDIS_SERVER_ENDPOINT
+          value: {{ .Values.redis.external.host }}
+        {{- end }}
+
+        {{- if eq .Values.redis.type "internal" }}
+        - name: REDIS_SERVER_ENDPOINT
+          value: {{ .Values.redis.internal.name }}
+        {{- end }}
+
+        {{- if eq .Values.database.type "external" }}
+        - name: YELB_DB_SERVER_ENDPOINT
+          value: {{ .Values.database.external.host }}
+        {{- end }}
+
+        {{- if eq .Values.database.type "internal" }}
+        - name: YELB_DB_SERVER_ENDPOINT
+          value: {{ .Values.database.internal.name }}
+        {{- end }}
+
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.application.name }}
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.application.name }}
+              key: POSTGRES_PASSWORD
+        {{- if eq .Values.database.type "external" }}
+        volumeMounts:
+          - name: yc-certs
+            mountPath: "/root/.postgresql/"
+        {{- end }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 20
+      imagePullSecrets:
+        - name: {{ .Values.application.imagePullSecret }}
+      volumes:
+        {{- if .Values.application.ui.nginxConf }} 
+        - name: nginx-config
+          configMap:
+            name: {{ .Values.application.ui.name }}
+        {{- end }} 
+        - name: init-database
+          configMap:
+            name: {{ .Values.application.app.name }}
+        {{- if eq .Values.database.type "external" }}
+        - name: yc-certs
+          emptyDir: {}    
+        {{- end }} 

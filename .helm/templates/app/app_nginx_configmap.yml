@@ -1,0 +1,41 @@
+{{- if .Values.application.ui.nginxConf }}
+apiVersion: v1
+kind: ConfigMap
+metadata: 
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.application.ui.name }}
+  name: {{ .Values.application.ui.name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  {{ .Values.application.ui.nginxConf }}: |
+    server {
+      listen {{ .Values.application.ui.service.targetPort }};
+ 
+      server_name {{ .Values.application.ingress.host | default "localhost" }};     
+      
+      location /api {
+        proxy_pass http://{{ .Values.application.app.name }}:{{ .Values.application.app.port }}/api;
+        proxy_http_version 1.1;
+      }
+      
+      gzip on;
+      gzip_types text/plain text/css application/json application/javascript application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+      gunzip on;
+
+      location / {
+        root   /clarity-seed/{{ .Values.application.ui.env.UI_ENV }}/dist;
+        index  index.html index.htm;
+      }
+
+      error_page   500 502 503 504  /50x.html;
+    
+      location = /50x.html {
+        root   /clarity-seed/{{ .Values.application.ui.env.UI_ENV }}/dist;
+      }
+    }
+
+{{- end }}

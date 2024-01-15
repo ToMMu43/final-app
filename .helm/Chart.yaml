@@ -1,0 +1,7 @@
+apiVersion: v2
+description: Helm chart for YELB application in Kubernetes.
+home: https://slurm.io/
+name: final-project
+version: 0.0.1
+sources:
+- https://s056635.gitlab.yandexcloud.net/final/graduation_work

@@ -1,0 +1,187 @@
+redis:
+# if you are using an external redis, set "type" to "external"
+# and fill the connection information in "external" section
+  type: internal
+  internal:
+    image: redis
+    imageTag: 7-alpine
+    name: redis-server
+    service:
+      port: 6379
+      targetPort: 6379
+    resources:
+      limits:
+        cpu: 400m
+        memory: 256Mi
+      requests:
+        cpu: 200m
+        memory: 128Mi
+    # Set livenessProbe, if enabled
+    livenessProbe:
+      tcpSocket:
+        port: 6379
+      failureThreshold: 5
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 10
+    # Set readinessProbe, if enabled  
+    readinessProbe:
+      exec:
+        command:
+          - "redis-cli"
+          - "ping"
+      failureThreshold: 5
+      initialDelaySeconds: 5
+      periodSeconds: 20
+      timeoutSeconds: 10
+    persistentVolume: disabled  
+  external:
+    host: redis.external.io
+    port: 6379
+    password: redis
+
+database:
+# if you are using an external database, set "type" to "external"
+# and fill the connection information in "external" section
+  type: internal
+  internal:
+    image: postgres
+    imageTag: 10
+    name: yelb-db
+    service:
+      port: 5432
+      targetPort: 5432
+    database: yelbdatabase
+    user: postgres
+    password: postgres_password
+    # Set livenessProbe, if enabled
+    # livenessProbe: []
+    livenessProbe:
+      tcpSocket:
+        port: 5432
+      failureThreshold: 5
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    # Set readinessProbe, if enabled
+    # readinessProbe: []
+    readinessProbe:
+      exec:
+        command:
+        - /bin/sh
+        - -c
+        - exec pg_isready -U "${POSTGRES_USER}" -h 127.0.0.1 -p 5432
+      failureThreshold: 5
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    resources:
+      limits:
+        cpu: 800m
+        memory: 512Mi
+      requests:
+        cpu: 400m
+        memory: 256Mi
+    persistentVolume: disabled   
+  external:
+    name: yc-postgres
+    host: rc1a-grtmhdiio4b503np.mdb.yandexcloud.net
+    port: 6432
+    database: yelbdatabase
+    user: yelb_user
+    password: yelb_p@ssword
+
+application:
+  name: application
+  # replicas used if autoScaling disabled (section bellow)
+  replicas: 1
+  ui:
+    name: yelb-ui
+    image: mreferre/yelb-ui
+    imageTag: 0.7
+    service:
+      type: NodePort
+      port: 80
+      targetPort: 80
+      nodePort: 32080
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 200m
+        memory: 128Mi
+    nginxConf: #default.conf
+    mountPath: #/etc/nginx/conf.d/
+
+    # Set readinessProbe, if enabled
+    # readinessProbe: []
+    readinessProbe:
+      timeoutSeconds: 5
+      failureThreshold: 5
+      successThreshold: 1  
+      initialDelaySeconds: 10
+      httpGet:
+        path: /
+        port: 80
+  # Set livenessProbe, if enabled
+    # livenessProbe: []
+    livenessProbe:
+      timeoutSeconds: 5
+      failureThreshold: 5
+      successThreshold: 1
+      initialDelaySeconds: 10
+      httpGet:
+        path: /
+        port: 80
+    env:
+      UI_ENV: prod # dev | test | prod    
+
+  app:
+    name: yelb-appserver
+    image: mreferre/yelb-appserver
+    imageTag: 0.5
+    port: 4567
+    resources:
+      limits:
+        cpu: 400m
+        memory: 256Mi
+      requests:
+        cpu: 200m
+        memory: 128Mi
+    # Set readinessProbe, if enabled
+    # readinessProbe: []
+    readinessProbe:
+      failureThreshold: 5
+      successThreshold: 1  
+      initialDelaySeconds: 10
+      tcpSocket:
+        port: 4567
+
+    # Set livenessProbe, if enabled
+    # livenessProbe: []
+    livenessProbe:
+      failureThreshold: 5
+      successThreshold: 1
+      initialDelaySeconds: 30
+      tcpSocket:
+        port: 4567
+    env:
+      RACK_ENV: production # development | test | production | custom  
+
+  imagePullSecret: registry-secret
+
+  # Autoscaling (hpa) parameters, values of targetCPU and targetMemory in percentage from limits
+  autoScaling:
+    enabled: false
+    maxReplicas: 4
+    minReplicas: 1
+    targetCPU: 70
+    targetMemory: 70
+
+  ingress:
+    host: s056635.redkin-edu.ru
+    # Choose certificate issuer server (letsencrypt-staging or letsencrypt-production)
+    clusterCertIssuer: letsencrypt-production

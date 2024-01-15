@@ -1,0 +1,22 @@
+{{- if eq .Values.redis.type "internal" -}}
+{{- if eq .Values.redis.internal.persistentVolume "enabled" -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.redis.internal.name }}
+  name: {{ .Values.redis.internal.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  storageClassName: local-storage
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.application.name }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.application.ingress.clusterCertIssuer | default "letsencrypt-staging" }}
+  name: {{ .Values.application.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: {{ .Values.application.ingress.host }}
+    http:
+      paths:
+      - pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ .Values.application.ui.name }}
+            port:
+              number: {{ .Values.application.ui.service.port }}
+  tls:
+  - hosts:
+    - {{ .Values.application.ingress.host }}
+    {{- if eq .Values.application.ingress.clusterCertIssuer "letsencrypt-staging" }}
+    secretName: my-tls-staging
+    {{- end }}
+    {{- if eq .Values.application.ingress.clusterCertIssuer "letsencrypt-production" }}
+    secretName: my-tls-production
+    {{- end }}

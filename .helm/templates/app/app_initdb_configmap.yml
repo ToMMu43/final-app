@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.application.app.name }}
+  namespace: {{ .Release.Namespace }}
+{{ if eq .Values.database.type "internal" -}}
+data:
+  init-db.sql: |
+      CREATE DATABASE {{ .Values.database.internal.database }};
+      \connect {{ .Values.database.internal.database }};
+      CREATE TABLE IF NOT EXISTS restaurants (
+            name char(30),
+            count integer,
+            PRIMARY KEY (name)
+      );
+      INSERT INTO {{ .Values.database.internal.database }}.public.restaurants (name, count) VALUES ('outback', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.internal.database }}.public.restaurants (name, count) VALUES ('bucadibeppo', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.internal.database }}.public.restaurants (name, count) VALUES ('chipotle', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.internal.database }}.public.restaurants (name, count) VALUES ('ihop', 0) ON CONFLICT (name) DO NOTHING;
+{{- end -}}
+
+{{ if eq .Values.database.type "external" -}}
+data:
+  init-db.sql: |
+      CREATE DATABASE IF NOT EXIST {{ .Values.database.external.database }};
+      \connect {{ .Values.database.external.database }};
+      CREATE TABLE IF NOT EXISTS restaurants (
+            name char(30),
+            count integer,
+            PRIMARY KEY (name)
+      );
+      INSERT INTO {{ .Values.database.external.database }}.public.restaurants (name, count) VALUES ('outback', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.external.database }}.public.restaurants (name, count) VALUES ('bucadibeppo', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.external.database }}.public.restaurants (name, count) VALUES ('chipotle', 0) ON CONFLICT (name) DO NOTHING;
+      INSERT INTO {{ .Values.database.external.database }}.public.restaurants (name, count) VALUES ('ihop', 0) ON CONFLICT (name) DO NOTHING;
+{{- end -}}

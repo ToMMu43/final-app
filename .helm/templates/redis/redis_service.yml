@@ -1,0 +1,23 @@
+{{- if eq .Values.redis.type "internal" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.redis.internal.name }}
+  name: {{ .Values.redis.internal.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - port: {{ .Values.redis.internal.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.redis.internal.service.targetPort }}
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    component: {{ .Values.redis.internal.name }}
+  type: ClusterIP
+{{- end -}}

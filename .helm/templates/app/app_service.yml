@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.application.name }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  
+  name: {{ .Values.application.ui.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - port: {{ .Values.application.ui.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.application.ui.service.targetPort }}
+    nodePort: {{ .Values.application.ui.service.nodePort }}
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    component: {{ .Values.application.name }}
+  type: {{ .Values.application.ui.service.type }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.application.name }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  
+  name: {{ .Values.application.app.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - port: {{ .Values.application.app.port }}
+    protocol: TCP
+    targetPort: {{ .Values.application.app.port }}
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    component: {{ .Values.application.name }}
+  type: ClusterIP
